@@ -19,6 +19,7 @@ env/
 
 # ── Runtime cache (auto-regenerated) ──────────────────────
 posted_cache.json
+job_queue.json
 
 # ── Temp files ─────────────────────────────────────────────
 *.jpg
