@@ -25,23 +25,65 @@ LINKEDIN_PERSON_URN   = os.getenv("LINKEDIN_PERSON_URN", "")  # e.g. urn:li:pers
 
 SOURCE_CHANNELS = [
     "me",
+    # ── Off-Campus & Tech (Freshers) ──
+    "CSEOfficialTelegram",
     "goyalarsh",
-    "jobs_and_internships_updates",
-    "fresherearth",
     "IT_Jobs_Career",
     "CSE_IT_BCA_MCA_Computer_Jobs",
-    "CSEOfficialTelegram",
-    "Government_Jobs_Sarkari_Naukri",
     "ob4fresherss",
     "placementkit",
     "placementdriveofficial",
     "fresher_offcampus_drives",
     "walkindrive",
     "freshershunt",
+    "fresherearth",
+    "OffCampusDrives",
+    "EngineeringJobs_OffCampus",
+    "Freshers_Careers",
+    "PlacementHub",
+    "OffCampusJobsAlert",
+    "AptitudeAndPlacements",
+    "TechPrepPlacements",
+    "MCA_BCA_Jobs",
+    "CSITGraduates",
+
+    # ── Internships & College Students ──
+    "jobs_and_internships_updates",
+    "InternshipsIndia",
+    "FresherInternships",
+    "CollegePlacementsPrep",
+    "StudentsInternshipHub",
+    "InternshipAlertsOfficial",
+    "PaidInternshipsIndia",
+    "StartupInternships",
+
+    # ── Remote & WFH ──
     "seekeras",
     "seekeraswfh",
     "joblii",
-    "placementdriveofficial"
+    "RemoteJobsGlobal",
+    "WFH_India",
+    "RemoteTechJobs",
+    "NoDeskJobs",
+    "RemoteWorkDaily",
+    "RemoteFrontendJobs",
+    "RemoteBackendJobs",
+
+    # ── Specialized Tech Roles ──
+    "DevOpsJobsAlert",
+    "DataScience_AI_Jobs",
+    "PythonDeveloperJobs",
+    "JavaDeveloperOpportunities",
+    "JavaScriptFullStack",
+    "ProductManagerJobsOfficial",
+    "QA_Testing_Jobs",
+    "CyberSecurityJobsAlert",
+
+    # ── General & Sarkari Naukri ──
+    "Government_Jobs_Sarkari_Naukri",
+    "SarkariResultOfficialChannel",
+    "FreeJobAlertOfficial",
+    "NaukriAlerts"
 ]
 
 TARGET_CHANNEL = "nextjobpost"
