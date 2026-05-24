@@ -1,0 +1,7 @@
+telethon
+aiohttp
+requests
+python-dotenv
+rapidfuzz
+python-slugify
+google-genai
