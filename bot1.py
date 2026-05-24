@@ -70,7 +70,7 @@ SITE_BASE_URL = "https://nextjobpost.in"
 # ── Queue Setup ──
 QUEUE_FILE = "job_queue.json"
 # Default 30 minutes (1800 seconds) between posts
-POST_INTERVAL = int(os.getenv("POST_INTERVAL", 3600))
+POST_INTERVAL = int(os.getenv("POST_INTERVAL", 1800))
 PENDING_IMAGES_DIR = "pending_images"
 
 if not os.path.exists(PENDING_IMAGES_DIR):
@@ -425,28 +425,210 @@ Job Posting Text:
         return extract_basic(text)
 
 # =========================
-# STEP 1A → UPLOAD IMAGE TO API
+# STEP 1A → POSTER GENERATOR & UPLOAD WITH RETRY
 # =========================
-async def upload_image_to_api(session, file_path):
+from PIL import Image, ImageDraw, ImageFont
+
+FONT_DIR = "fonts"
+FONT_PATH = os.path.join(FONT_DIR, "Roboto-Bold.ttf")
+FONT_URL = "https://raw.githubusercontent.com/googlefonts/roboto/master/src/hinted/Roboto-Bold.ttf"
+
+async def ensure_font_downloaded():
+    """Asynchronously downloads Roboto-Bold font from GitHub/GoogleFonts raw repository."""
+    if not os.path.exists(FONT_PATH):
+        os.makedirs(FONT_DIR, exist_ok=True)
+        print("📥 [POSTER] Downloading Roboto-Bold font from Google Fonts GitHub repository...")
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {'User-Agent': 'Mozilla/5.0'}
+                async with session.get(FONT_URL, headers=headers, timeout=30) as resp:
+                    if resp.status == 200:
+                        content = await resp.read()
+                        with open(FONT_PATH, "wb") as f:
+                            f.write(content)
+                        print("✅ [POSTER] Font downloaded successfully!")
+                    else:
+                        print(f"⚠️ [POSTER] Font download failed with status {resp.status}")
+        except Exception as e:
+            print(f"⚠️ [POSTER] Font download failed: {e}")
+
+def wrap_text(text, font, max_width):
+    words = text.split()
+    lines = []
+    current_line = []
+    for word in words:
+        test_line = " ".join(current_line + [word])
+        w = font.getbbox(test_line)[2]
+        if w <= max_width:
+            current_line.append(word)
+        else:
+            if current_line:
+                lines.append(" ".join(current_line))
+            current_line = [word]
+    if current_line:
+        lines.append(" ".join(current_line))
+    return lines
+
+def generate_poster(title, company, location, salary, output_path):
+    """Generates a professional 1200x630 job poster dynamically with Pillow."""
+    width, height = 1200, 630
+    
+    # 1. Create a beautiful deep space blue/indigo gradient
+    base_grad = Image.new("RGB", (2, 2))
+    base_grad.putpixel((0, 0), (15, 23, 42))  # Slate 900
+    base_grad.putpixel((1, 0), (30, 41, 59))  # Slate 800
+    base_grad.putpixel((0, 1), (15, 25, 45))  # Deep Space Blue
+    base_grad.putpixel((1, 1), (43, 20, 85))  # Dark Indigo
+    
+    img = base_grad.resize((width, height), Image.Resampling.BILINEAR)
+    draw = ImageDraw.Draw(img)
+    
+    # Load fonts
+    try:
+        font_logo = ImageFont.truetype(FONT_PATH, 28)
+        font_company = ImageFont.truetype(FONT_PATH, 34)
+        font_title = ImageFont.truetype(FONT_PATH, 54)
+        font_meta = ImageFont.truetype(FONT_PATH, 24)
+        font_btn = ImageFont.truetype(FONT_PATH, 26)
+    except Exception as e:
+        print(f"⚠️ Error loading font, using default: {e}")
+        font_logo = font_company = font_title = font_meta = font_btn = ImageFont.load_default()
+        
+    # Draw branding logo top-left
+    draw.text((80, 50), "NEXTJOBPOST.COM", fill=(56, 189, 248), font=font_logo)
+    draw.line([(80, 95), (200, 95)], fill=(56, 189, 248), width=3)
+    
+    # Draw "WE ARE HIRING" / Company header
+    draw.text((80, 140), f"WE ARE HIRING AT {company.upper()}", fill=(244, 63, 94), font=font_company)
+    
+    # Draw Job Title (with wrapping)
+    wrapped_title = wrap_text(title, font_title, 1040)
+    y_offset = 210
+    for line in wrapped_title:
+        draw.text((80, y_offset), line, fill=(255, 255, 255), font=font_title)
+        y_offset += 75
+        
+    # Draw Meta details
+    meta_y = y_offset + 30
+    meta_text = []
+    if location:
+        meta_text.append(f"Location: {location}")
+    if salary:
+        meta_text.append(f"Salary: {salary}")
+    
+    if meta_text:
+        draw.text((80, meta_y), "  |  ".join(meta_text), fill=(209, 213, 219), font=font_meta)
+        
+    # Draw Button at the bottom
+    btn_x0, btn_y0 = 80, 500
+    btn_x1, btn_y1 = 280, 560
+    draw.rounded_rectangle([(btn_x0, btn_y0), (btn_x1, btn_y1)], radius=12, fill=(239, 68, 68))
+    
+    btn_txt = "Apply Now"
+    btn_txt_w = font_btn.getbbox(btn_txt)[2] - font_btn.getbbox(btn_txt)[0]
+    btn_txt_h = font_btn.getbbox(btn_txt)[3] - font_btn.getbbox(btn_txt)[1]
+    
+    btn_txt_x = btn_x0 + (btn_x1 - btn_x0 - btn_txt_w) // 2
+    btn_txt_y = btn_y0 + (btn_y1 - btn_y0 - btn_txt_h) // 2 - 3
+    
+    draw.text((btn_txt_x, btn_txt_y), btn_txt, fill=(255, 255, 255), font=font_btn)
+    
+    # Save Image
+    img.save(output_path, "PNG")
+
+async def upload_image_to_api(session, file_path, retries=3, delay=5):
+    """
+    Uploads an image to the Render backend.
+    Includes cold-start mitigation, timeout/HTML response handling, and 3 retries.
+    """
+    # 1. Cold start handling: Ping the backend API
+    health_url = API_URL.replace("/jobs", "/health")
+    print(f"⏳ [UPLOAD] Pinging Render backend ({health_url}) to mitigate cold start...")
+    try:
+        async with session.get(health_url, timeout=60) as res:
+            await res.read()
+    except Exception as e:
+        print(f"⚠️ [UPLOAD] Backend ping failed (expected if completely cold): {e}")
+
+    # 2. Wait 5 seconds to ensure backend starts up/receives connections
+    print("⏳ [UPLOAD] Waiting 5 seconds for Render backend connection readiness...")
+    await asyncio.sleep(5)
+
     headers = {}
     if API_TOKEN:
         headers["Authorization"] = f"Bearer {API_TOKEN}"
-    
-    data = aiohttp.FormData()
-    data.add_field('image',
-                   open(file_path, 'rb'),
-                   filename=os.path.basename(file_path),
-                   content_type='image/jpeg')
-                   
+
     upload_url = API_URL.replace("/jobs", "/upload/image")
-    async with session.post(upload_url, data=data, headers=headers) as res:
+    
+    for attempt in range(1, retries + 1):
+        print(f"📸 [UPLOAD] Attempt {attempt}/{retries}: Uploading {os.path.basename(file_path)}...")
         try:
-            resp_data = await res.json()
-            if resp_data.get("success"):
-                return f"https://job-tdg8.onrender.com{resp_data.get('imageUrl')}"
+            data = aiohttp.FormData()
+            data.add_field('image',
+                           open(file_path, 'rb'),
+                           filename=os.path.basename(file_path),
+                           content_type='image/jpeg')
+
+            async with session.post(upload_url, data=data, headers=headers, timeout=30) as res:
+                # Detect 503 Service Unavailable
+                if res.status == 503:
+                    print(f"⚠️ [UPLOAD] 503 Service Unavailable on attempt {attempt}")
+                    if attempt < retries:
+                        await asyncio.sleep(delay * attempt)
+                        continue
+                    break
+
+                # Detect HTML response page (Render proxy/routing errors)
+                content_type = res.headers.get("Content-Type", "")
+                if "text/html" in content_type:
+                    print(f"⚠️ [UPLOAD] Received HTML page instead of JSON on attempt {attempt}")
+                    if attempt < retries:
+                        await asyncio.sleep(delay * attempt)
+                        continue
+                    break
+
+                # Try parsing JSON
+                try:
+                    resp_data = await res.json()
+                except Exception as json_err:
+                    print(f"⚠️ [UPLOAD] Invalid JSON output on attempt {attempt}: {json_err}")
+                    if attempt < retries:
+                        await asyncio.sleep(delay * attempt)
+                        continue
+                    break
+
+                # Handle success response
+                if resp_data.get("success"):
+                    img_url_val = resp_data.get('imageUrl', '')
+                    if img_url_val.startswith("http://") or img_url_val.startswith("https://"):
+                        image_url = img_url_val
+                    else:
+                        try:
+                            from urllib.parse import urlparse
+                            parsed = urlparse(API_URL)
+                            base_url = f"{parsed.scheme}://{parsed.netloc}"
+                        except Exception:
+                            base_url = "https://job-tdg8.onrender.com"
+                        image_url = f"{base_url}{img_url_val}"
+                    print(f"✅ [UPLOAD] Success! URL: {image_url}")
+                    return image_url
+                else:
+                    print(f"⚠️ [UPLOAD] API returned success=False on attempt {attempt}: {resp_data}")
+
+        except asyncio.TimeoutError:
+            print(f"⚠️ [UPLOAD] Request timed out on attempt {attempt}")
+        except FileNotFoundError:
+            print(f"❌ [UPLOAD] File not found: {file_path}")
+            break
         except Exception as e:
-            print(f"⚠️ Image Upload Failed: {e}")
-            pass
+            print(f"⚠️ [UPLOAD] Unexpected error on attempt {attempt}: {e}")
+
+        if attempt < retries:
+            wait_time = delay * attempt
+            print(f"⏳ [UPLOAD] Waiting {wait_time}s before retry...")
+            await asyncio.sleep(wait_time)
+
+    print("❌ [UPLOAD] Failed to upload image after all retries.")
     return ""
 
 # =========================
@@ -760,11 +942,6 @@ async def process_and_post_job(job_data):
 
     print(f"\n🚀 [SCHEDULER] Processing job: {job['title']}")
 
-    # Strictly require a real, non-static/non-fake image. Abort if missing or invalid.
-    if not image_path or not os.path.exists(image_path) or os.path.getsize(image_path) == 0:
-        print(f"🚫 [ABORT] Job '{job['title']}' has no image or the image file is empty. Aborting social posts.")
-        return
-
     # Double check that the job contains all real information and no placeholder/missing values
     is_valid, reason = is_valid_job(job)
     if not is_valid:
@@ -773,9 +950,37 @@ async def process_and_post_job(job_data):
 
     async with aiohttp.ClientSession() as session:
         # 1. Image Upload
-        uploaded_url = await upload_image_to_api(session, image_path)
+        uploaded_url = None
+        has_real_image = image_path and os.path.exists(image_path) and os.path.getsize(image_path) > 0
+        
+        if has_real_image:
+            uploaded_url = await upload_image_to_api(session, image_path)
+            
         if not uploaded_url:
-            print(f"🚫 [ABORT] Image upload failed for job '{job['title']}'. Only posts with successfully uploaded, real images are allowed.")
+            print(f"⚠️ [SCHEDULER] Real image upload failed or image missing for '{job['title']}'. Generating professional fallback poster...")
+            fallback_path = os.path.join(PENDING_IMAGES_DIR, f"generated_{h}.png")
+            
+            try:
+                await ensure_font_downloaded()
+                generate_poster(
+                    title=job.get("title", "Job Opportunity"),
+                    company=job.get("company", "Top Company"),
+                    location=job.get("location", "Pan India"),
+                    salary=job.get("salary", "Best in Industry"),
+                    output_path=fallback_path
+                )
+                print(f"🎨 [SCHEDULER] Fallback poster generated at: {fallback_path}")
+                
+                # Upload the generated poster
+                uploaded_url = await upload_image_to_api(session, fallback_path)
+                
+                # Update image_path so subsequent steps (Telegram/LinkedIn) post the generated poster
+                image_path = fallback_path
+            except Exception as gen_err:
+                print(f"❌ [SCHEDULER] Fallback poster generation/upload failed: {gen_err}")
+
+        if not uploaded_url:
+            print(f"🚫 [ABORT] Failed to upload any valid image for job '{job['title']}'. Aborting social posts.")
             return
 
         job["image"] = uploaded_url
