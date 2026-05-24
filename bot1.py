@@ -64,7 +64,7 @@ SOURCE_CHANNELS = [
 
 TARGET_CHANNEL = "nextjobpost"
 
-API_URL = os.getenv("API_URL", "https://job-tdg8.onrender.com/api/jobs")
+API_URL = os.getenv("API_URL", "https://next-job-cfbh.onrender.com/api/jobs")
 SITE_BASE_URL = "https://nextjobpost.in"
 
 # ── Queue Setup ──
