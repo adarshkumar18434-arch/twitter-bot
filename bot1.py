@@ -682,8 +682,17 @@ async def process_and_post_job(job_data):
             return
 
         try:
-            await client.send_message(TARGET_CHANNEL, post)
-            print(f"✔ Telegram Posted.")
+            if image_path and os.path.exists(image_path):
+                # Send with image as caption (premium look)
+                await client.send_file(
+                    TARGET_CHANNEL,
+                    file=image_path,
+                    caption=post
+                )
+            else:
+                # Fallback: text-only if image is missing
+                await client.send_message(TARGET_CHANNEL, post)
+            print(f"✔ Telegram Posted (with image).")
         except Exception as e:
             print(f"❌ Telegram failed: {e}")
 
