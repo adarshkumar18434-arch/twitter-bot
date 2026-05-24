@@ -194,21 +194,148 @@ def extract_basic(text):
         "slug": slugify(title) + "-" + hashlib.md5(text.encode()).hexdigest()[:5]
     }
 
+from urllib.parse import urlparse
+
+def clean_company_name(s):
+    words_orig = s.split()
+    s_lower = " " + s.lower() + " "
+    
+    # Remove common phrases and job titles
+    patterns_to_remove = [
+        r"\boff\s*campus\b", r"\bcampus\b", r"\bdrive\b", r"\bhiring\b", r"\brecruitment\b", 
+        r"\bjobs?\b", r"\bcareers?\b", r"\bnew\b", r"\bfreshers?\b", 
+        r"\binternships?\b", r"\binterns?\b", r"\b202[0-9]\b", r"\bapply\s*now\b",
+        r"\bopportunity\b", r"\bopenings?\b", r"\balerts?\b", r"\bupdates?\b",
+        r"\bsoftware\s*engineer\b", r"\bsoftware\s*developer\b", r"\bdeveloper\b",
+        r"\bengineer\b", r"\banalyst\b", r"\btester\b", r"\bsupport\b", r"\bconsultant\b",
+        r"\bassociate\b", r"\bexecutive\b", r"\btrainee\b", r"\bmanager\b",
+        r"\bfor\b", r"\bat\b", r"\bthe\b", r"\ban\b", r"\ba\b", r"\bin\b", r"\bto\b", r"\bof\b", r"\bwith\b"
+    ]
+    
+    cleaned = s_lower
+    for pattern in patterns_to_remove:
+        cleaned = re.sub(pattern, " ", cleaned)
+    
+    cleaned = cleaned.strip(" -|:_!@#%^&*()[]{}<>.,/\\\"'")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    
+    result_words = []
+    for w in cleaned.split():
+        orig_match = None
+        for orig_w in words_orig:
+            clean_orig = re.sub(r"[^a-zA-Z0-9]", "", orig_w)
+            if clean_orig.lower() == w.lower():
+                orig_match = clean_orig
+                break
+        if orig_match and orig_match.isupper() and len(orig_match) >= 2:
+            result_words.append(orig_match)
+        else:
+            result_words.append(w.capitalize())
+            
+    return " ".join(result_words)
+
+def get_company_from_link(url):
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+        netloc = parsed.netloc.lower()
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
+        parts = netloc.split(".")
+        if len(parts) >= 2:
+            generic_domains = {"com", "org", "net", "in", "co", "io", "us", "uk", "edu", "gov", "me", "info", "tech"}
+            generic_hosts = {"forms", "gle", "github", "notion", "linktr", "t", "telegram", "facebook", "twitter", "linkedin", "instagram", "youtube", "drive", "docs"}
+            domain_parts = [p for p in parts if p not in generic_domains]
+            if domain_parts:
+                main_domain = domain_parts[-1]
+                if main_domain not in generic_hosts:
+                    return main_domain.upper() if len(main_domain) <= 3 else main_domain.capitalize()
+    except:
+        pass
+    return None
+
+def guess_company_from_title(title):
+    if not title:
+        return None
+    
+    # 1. Try pattern "... at [Company]" or "... by [Company]"
+    at_match = re.search(r"\b(?:at|by)\s+([a-zA-Z0-9\s]+)", title, re.IGNORECASE)
+    if at_match:
+        candidate_words = at_match.group(1).strip().split()
+        if candidate_words:
+            candidate = " ".join(candidate_words[:2])
+            cleaned = clean_company_name(candidate)
+            if cleaned and cleaned.lower() not in ["new", "hiring", "apply", "urgent", "huge", "latest", "alert", "job", "software", "associate", "junior", "senior", "lead"]:
+                return cleaned
+                
+    # 2. Try splitting by common delimiters
+    delimiters = ["|", "-", ":", "–"]
+    for delim in delimiters:
+        if delim in title:
+            parts = title.split(delim)
+            for part in parts:
+                cleaned = clean_company_name(part)
+                if cleaned and len(cleaned.split()) <= 3 and len(cleaned) < 25:
+                    if cleaned.lower() not in ["new hiring", "hiring", "apply now", "freshers", "for", "software", "associate", "junior", "senior", "lead"]:
+                        return cleaned
+
+    # 3. Try first word
+    words = title.split()
+    if words:
+        first_word_cleaned = clean_company_name(words[0])
+        if first_word_cleaned and len(first_word_cleaned) >= 2:
+            if first_word_cleaned.lower() not in ["new", "hiring", "apply", "urgent", "huge", "latest", "alert", "job", "software", "associate", "junior", "senior", "lead"]:
+                return first_word_cleaned
+                
+    # 4. Fallback to clean whole title
+    cleaned = clean_company_name(title)
+    if cleaned and len(cleaned.split()) <= 3 and len(cleaned) < 25:
+        if cleaned.lower() not in ["new hiring", "hiring", "apply now", "freshers", "for", "software", "associate", "junior", "senior", "lead"]:
+            return cleaned
+            
+    return None
+
 def is_valid_job(job):
     """
     Validates the job details. If any required information is missing, not specified, 
-    not disclosed, or not mentioned, it returns False so we do not post/queue the job.
+    not disclosed, or not mentioned, we fill in a default or guess to ensure we do not skip.
     """
     # Auto-default salary and batch if missing or containing forbidden placeholders
     forbidden_terms = ["not mentioned", "not specified", "not disclosed", "confidential", "hiring company"]
     
+    # 1. Auto-default salary
     salary = job.get("salary")
     if not salary or any(term in str(salary).lower() for term in forbidden_terms):
         job["salary"] = "Best in Industry"
         
+    # 2. Auto-default batch
     batch = job.get("batch")
     if not batch or any(term in str(batch).lower() for term in forbidden_terms):
         job["batch"] = "2024 / 2025 / 2026"
+        
+    # 3. Auto-default company (guess from title or URL first, then fallback to Top Company)
+    company = job.get("company")
+    if not company or any(term in str(company).lower() for term in forbidden_terms):
+        guessed = guess_company_from_title(job.get("title"))
+        if not guessed:
+            guessed = get_company_from_link(job.get("applyLink"))
+        job["company"] = guessed or "Top Company"
+        
+    # 4. Auto-default location
+    location = job.get("location")
+    if not location or any(term in str(location).lower() for term in forbidden_terms):
+        job["location"] = "Pan India"
+        
+    # 5. Auto-default experience
+    experience = job.get("experience")
+    if not experience or any(term in str(experience).lower() for term in forbidden_terms):
+        job["experience"] = "Fresher / 0-2 Years"
+        
+    # 6. Auto-default education
+    education = job.get("education")
+    if not education or any(term in str(education).lower() for term in forbidden_terms):
+        job["education"] = "Any Graduate"
         
     # Key fields to check
     check_keys = ["company", "location", "salary", "experience", "education", "batch"]
