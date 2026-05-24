@@ -30,30 +30,17 @@ SOURCE_CHANNELS = [
     "goyalarsh",
     "IT_Jobs_Career",
     "CSE_IT_BCA_MCA_Computer_Jobs",
-    "ob4fresherss",
     "placementkit",
     "placementdriveofficial",
     "fresher_offcampus_drives",
     "walkindrive",
     "freshershunt",
     "fresherearth",
-    "OffCampusDrives",
-    "EngineeringJobs_OffCampus",
-    "Freshers_Careers",
-    "PlacementHub",
-    "OffCampusJobsAlert",
-    "AptitudeAndPlacements",
-    "TechPrepPlacements",
-    "MCA_BCA_Jobs",
-    "CSITGraduates",
 
     # ── Internships & College Students ──
     "jobs_and_internships_updates",
     "InternshipsIndia",
     "FresherInternships",
-    "CollegePlacementsPrep",
-    "StudentsInternshipHub",
-    "InternshipAlertsOfficial",
     "PaidInternshipsIndia",
     "StartupInternships",
 
@@ -62,28 +49,17 @@ SOURCE_CHANNELS = [
     "seekeraswfh",
     "joblii",
     "RemoteJobsGlobal",
-    "WFH_India",
-    "RemoteTechJobs",
-    "NoDeskJobs",
     "RemoteWorkDaily",
-    "RemoteFrontendJobs",
-    "RemoteBackendJobs",
 
     # ── Specialized Tech Roles ──
-    "DevOpsJobsAlert",
-    "DataScience_AI_Jobs",
     "PythonDeveloperJobs",
-    "JavaDeveloperOpportunities",
     "JavaScriptFullStack",
-    "ProductManagerJobsOfficial",
     "QA_Testing_Jobs",
-    "CyberSecurityJobsAlert",
 
     # ── General & Sarkari Naukri ──
     "Government_Jobs_Sarkari_Naukri",
     "SarkariResultOfficialChannel",
-    "FreeJobAlertOfficial",
-    "NaukriAlerts"
+    "FreeJobAlertOfficial"
 ]
 
 TARGET_CHANNEL = "nextjobpost"
