@@ -648,9 +648,6 @@ async def send_to_api(session, job):
         except:
             return None
 
-# =========================
-# STEP 2 → BUILD TELEGRAM POST
-# =========================
 def build_post(job, slug):
     job_url = f"{SITE_BASE_URL}/{slug}"
 
@@ -661,12 +658,10 @@ def build_post(job, slug):
 🎓 {job['education']}
 ⏳ {job['experience']}
 
-👉 Apply: {job['applyLink']}
-
-🌐 View Full Job: {job_url}
+👉 Apply Now: {job_url}
 
 ━━━━━━━━━━━━━━━
-📢 Follow on LinkedIn: https://www.linkedin.com/company/nextjobpost  <-- UPDATE THIS!
+📢 Follow on LinkedIn: https://www.linkedin.com/company/nextjobpost
 🚀 More Jobs: https://nextjobpost.in
 """
 
