@@ -649,112 +649,218 @@ async def send_to_api(session, job):
             return None
 
 def build_post(job, slug):
-    job_url = f"{SITE_BASE_URL}/{slug}"
-    salary = job.get('salary', 'Best in Industry')
-    batch = job.get('batch', '2024 / 2025 / 2026')
+    """Build a rich, fully-featured Telegram post with maximum engagement."""
+    job_url    = f"{SITE_BASE_URL}/{slug}"
+    title      = job.get('title', 'Job Opening')
+    company    = job.get('company', 'Top Company')
+    location   = job.get('location', 'Pan India')
+    education  = job.get('education', 'Any Graduate')
+    experience = job.get('experience', 'Fresher / 0-2 Years')
+    salary     = job.get('salary', 'Best in Industry')
+    batch      = job.get('batch', '2024 / 2025 / 2026')
+    job_type   = job.get('type', 'Full-Time')
+    last_date  = job.get('lastDate', '')
+    summary    = job.get('shortSummary', '') or job.get('description', '')
+    why_join   = job.get('whyJoin', '')
+    how_apply  = job.get('howToApply', '')
+    final_note = job.get('finalThoughts', '')
 
-    return f"""🔥 **New Off-Campus Drive 2026** 🔥
+    # ── Skills (up to 6) ──
+    skills_raw = job.get('skills', [])
+    skills_section = ''
+    if skills_raw:
+        skill_list = '  •  '.join(skills_raw[:6])
+        skills_section = f"\n🛠 **Skills:** {skill_list}\n"
 
-💼 **Role:** {job['title']}
-🏢 **Company:** {job['company']}
-📍 **Location:** {job['location']}
-🎓 **Education:** {job['education']}
-⏳ **Experience:** {job['experience']}
-💰 **Salary:** {salary}
-🎯 **Batch:** {batch}
+    # ── Responsibilities (up to 3) ──
+    resp_raw = job.get('responsibilities', [])
+    resp_section = ''
+    if resp_raw:
+        bullets = '\n'.join(f'   ▸ {r}' for r in resp_raw[:3])
+        resp_section = f"\n📋 **What You'll Do:**\n{bullets}\n"
 
-👉 **Apply Link:** {job_url}
+    # ── Requirements (up to 3) ──
+    req_raw = job.get('requirements', [])
+    req_section = ''
+    if req_raw:
+        bullets = '\n'.join(f'   ✔ {r}' for r in req_raw[:3])
+        req_section = f"\n✅ **Requirements:**\n{bullets}\n"
 
-━━━━━━━━━━━━━━━━━━━━━━━━
-📢 Follow on LinkedIn: https://www.linkedin.com/company/nextjobpost
-🚀 More Jobs: https://nextjobpost.in
-"""
+    # ── Why Join ──
+    why_section = ''
+    if why_join:
+        # Trim to 180 chars for Telegram readability
+        trimmed = why_join[:180].rstrip()
+        why_section = f"\n💡 **Why Join?**\n{trimmed}...\n"
+
+    # ── How to Apply ──
+    how_section = ''
+    if how_apply:
+        trimmed = how_apply[:200].rstrip()
+        how_section = f"\n📝 **How to Apply:**\n{trimmed}\n"
+
+    # ── Optional fields ──
+    batch_line    = f"🎯 **Batch:**      {batch}\n" if batch else ''
+    type_line     = f"💼 **Job Type:**   {job_type}\n"
+    deadline_line = f"⏰ **Last Date:**  {last_date}\n" if last_date else ''
+    summary_line  = f"\n📣 {summary}\n" if summary else ''
+
+    # ── Final thoughts ──
+    final_section = ''
+    if final_note:
+        final_section = f"\n✨ {final_note}\n"
+
+    return (
+        f"🔥 **{title}** 🔥\n"
+        f"🏢 **{company}**\n"
+        f"{summary_line}"
+        f"\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📍 **Location:**   {location}\n"
+        f"🎓 **Education:**  {education}\n"
+        f"⏳ **Experience:** {experience}\n"
+        f"💰 **Salary:**     {salary}\n"
+        f"{type_line}"
+        f"{batch_line}"
+        f"{deadline_line}"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━"
+        f"{skills_section}"
+        f"{resp_section}"
+        f"{req_section}"
+        f"{why_section}"
+        f"{how_section}"
+        f"{final_section}"
+        f"\n🔗 **Apply Here →** {job_url}\n"
+        f"\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📢 **Next Job Post** — Your daily job alert hub\n"
+        f"🌐 More Jobs:  https://nextjobpost.in\n"
+        f"💼 LinkedIn:   https://www.linkedin.com/company/nextjobpost\n"
+        f"👉 **Join Channel:** https://t.me/nextjobpost\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔔 **Share with friends who need a job!** 👇"
+    )
 
 # =========================
 # STEP 2B → POST TO LINKEDIN (Rich + Image)
 # =========================
 def build_linkedin_post(job, slug):
-    """Build a rich, detailed LinkedIn post body optimised for reach."""
-    job_url    = f"{SITE_BASE_URL}/{slug}"
-    title      = job.get('title', 'Job Opening')
-    company    = job.get('company', 'Top Company')
-    location   = job.get('location', 'Pan India')
-    education  = job.get('education', 'Graduation')
-    experience = job.get('experience', 'Fresher')
-    salary     = job.get('salary', 'As per industry standards')
-    batch      = job.get('batch', '')
-    job_type   = job.get('type', 'Full-Time')
-    last_date  = job.get('lastDate', '')
-    apply_link = job.get('applyLink', job_url)
-    summary    = job.get('shortSummary', '') or job.get('description', '')
+    """Build a rich, fully-detailed LinkedIn post optimised for reach and engagement."""
+    job_url      = f"{SITE_BASE_URL}/{slug}"
+    title        = job.get('title', 'Job Opening')
+    company      = job.get('company', 'Top Company')
+    location     = job.get('location', 'Pan India')
+    education    = job.get('education', 'Any Graduate')
+    experience   = job.get('experience', 'Fresher / 0-2 Years')
+    salary       = job.get('salary', 'As per industry standards')
+    batch        = job.get('batch', '')
+    job_type     = job.get('type', 'Full-Time')
+    last_date    = job.get('lastDate', '')
+    summary      = job.get('shortSummary', '') or job.get('description', '')
+    about_co     = job.get('aboutCompany', '')
+    why_join     = job.get('whyJoin', '')
+    how_apply    = job.get('howToApply', '')
+    final_note   = job.get('finalThoughts', '')
 
-    # --- Skills bullet points (up to 6) ---
-    skills_raw = job.get('skills', [])
-    skills_section = ""
-    if skills_raw:
-        skill_bullets = "\n".join(f"   ▸ {s}" for s in skills_raw[:6])
-        skills_section = f"\n🛠️ Skills Required:\n{skill_bullets}\n"
-
-    # --- Key responsibilities (up to 4) ---
-    resp_raw = job.get('responsibilities', [])
-    resp_section = ""
-    if resp_raw:
-        resp_bullets = "\n".join(f"   • {r}" for r in resp_raw[:4])
-        resp_section = f"\n📋 Key Responsibilities:\n{resp_bullets}\n"
-
-    # --- Requirements (up to 4) ---
-    req_raw = job.get('requirements', [])
-    req_section = ""
-    if req_raw:
-        req_bullets = "\n".join(f"   ✔ {r}" for r in req_raw[:4])
-        req_section = f"\n✅ Requirements:\n{req_bullets}\n"
-
-    # --- Batch ---
-    batch_line = f"🎯 Batch       : {batch}\n" if batch and batch.lower() not in ("not mentioned", "not specified", "") else ""
-
-    # --- Last date ---
-    deadline_line = f"📅 Last Date   : {last_date}\n" if last_date else ""
-
-    # --- Job type badge ---
-    type_badge = f"💼 Job Type    : {job_type}\n"
-
-    # --- Dynamic hashtags ---
-    hashtag_set = {
-        "#Hiring", "#Jobs", "#JobAlert", "#NextJobPost", "#Career",
-        "#JobSearch", "#Recruitment",
-    }
-    if "intern" in job_type.lower() or "intern" in title.lower():
-        hashtag_set.update(["#Internship", "#InternshipAlert", "#Fresher"])
+    # ── Attention-grabbing opening hook ─────────────────────────────────
+    if 'intern' in job_type.lower() or 'intern' in title.lower():
+        hook = f"🎓 Freshers & Students — This is YOUR moment! {company} is hiring!\n"
+    elif 'remote' in location.lower() or 'remote' in job_type.lower():
+        hook = f"🏠 Work from Anywhere! {company} has a Remote opening for you!\n"
     else:
-        hashtag_set.update(["#Fresher", "#JobOpening", "#NowHiring"])
-    if any(t in title.lower() for t in ["software", "developer", "engineer", "tech", "data", "python", "java"]):
-        hashtag_set.update(["#TechJobs", "#SoftwareJobs", "#ITJobs"])
-    if "remote" in location.lower():
-        hashtag_set.add("#RemoteJobs")
-    if "finance" in title.lower() or "banking" in title.lower():
-        hashtag_set.update(["#FinanceJobs", "#BankingJobs"])
-    hashtags = " ".join(sorted(hashtag_set))
+        hook = f"🚀 Exciting Career Opportunity at {company}!\n"
+
+    # ── About Company (2-3 sentences) ───────────────────────────────────
+    about_section = ''
+    if about_co:
+        about_section = f"\n🏢 About {company}:\n{about_co}\n"
+
+    # ── Skills bullet points (up to 6) ──────────────────────────────────
+    skills_raw = job.get('skills', [])
+    skills_section = ''
+    if skills_raw:
+        skill_bullets = '\n'.join(f'   ▸ {s}' for s in skills_raw[:6])
+        skills_section = f'\n🛠️ Key Skills Required:\n{skill_bullets}\n'
+
+    # ── Key responsibilities (up to 5) ──────────────────────────────────
+    resp_raw = job.get('responsibilities', [])
+    resp_section = ''
+    if resp_raw:
+        resp_bullets = '\n'.join(f'   📌 {r}' for r in resp_raw[:5])
+        resp_section = f'\n📋 What You Will Do:\n{resp_bullets}\n'
+
+    # ── Requirements (up to 5) ──────────────────────────────────────────
+    req_raw = job.get('requirements', [])
+    req_section = ''
+    if req_raw:
+        req_bullets = '\n'.join(f'   ✔ {r}' for r in req_raw[:5])
+        req_section = f'\n✅ Who Should Apply:\n{req_bullets}\n'
+
+    # ── Why Join section ────────────────────────────────────────────────
+    why_section = ''
+    if why_join:
+        why_section = f'\n💡 Why Join {company}?\n{why_join}\n'
+
+    # ── How to Apply ────────────────────────────────────────────────────
+    how_section = ''
+    if how_apply:
+        how_section = f'\n📝 How to Apply:\n{how_apply}\n'
+
+    # ── Optional badge lines ─────────────────────────────────────────────
+    batch_line    = f"🎯 Batch        : {batch}\n" if batch and batch.lower() not in ('not mentioned', 'not specified', '') else ''
+    deadline_line = f"⏰ Last Date    : {last_date}  ← Don't miss the deadline!\n" if last_date else ''
+    type_badge    = f"💼 Job Type     : {job_type}\n"
+
+    # ── Final encouraging note ───────────────────────────────────────────
+    final_section = ''
+    if final_note:
+        final_section = f'\n✨ {final_note}\n'
+    else:
+        final_section = '\n✨ Best of luck with your application! You\'ve got this! 💪\n'
+
+    # ── Smart dynamic hashtags ───────────────────────────────────────────
+    hashtag_set = {
+        '#Hiring', '#Jobs', '#JobAlert', '#NextJobPost', '#Career',
+        '#JobSearch', '#Recruitment', '#OpenToWork',
+    }
+    if 'intern' in job_type.lower() or 'intern' in title.lower():
+        hashtag_set.update(['#Internship', '#InternshipAlert', '#Fresher', '#CampusHiring'])
+    else:
+        hashtag_set.update(['#Fresher', '#JobOpening', '#NowHiring', '#OffCampus'])
+    if any(t in title.lower() for t in ['software', 'developer', 'engineer', 'tech', 'data', 'python', 'java', 'devops', 'cloud']):
+        hashtag_set.update(['#TechJobs', '#SoftwareJobs', '#ITJobs', '#TechHiring'])
+    if 'remote' in location.lower() or 'remote' in job_type.lower():
+        hashtag_set.update(['#RemoteJobs', '#WorkFromHome', '#RemoteWork'])
+    if 'finance' in title.lower() or 'banking' in title.lower():
+        hashtag_set.update(['#FinanceJobs', '#BankingJobs', '#BFSI'])
+    if 'data' in title.lower() or 'analyst' in title.lower():
+        hashtag_set.update(['#DataScience', '#Analytics', '#DataJobs'])
+    hashtags = ' '.join(sorted(hashtag_set))
 
     post_text = (
-        f"🔥 {title} @ {company}\n\n"
+        f"{hook}\n"
+        f"🔥 {title}\n"
         f"📣 {summary}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📍 Location   : {location}\n"
-        f"🎓 Education  : {education}\n"
-        f"⏳ Experience : {experience}\n"
-        f"💰 Salary     : {salary}\n"
+        f"📍 Location     : {location}\n"
+        f"🎓 Education    : {education}\n"
+        f"⏳ Experience   : {experience}\n"
+        f"💰 Salary       : {salary}\n"
         f"{type_badge}"
         f"{batch_line}"
         f"{deadline_line}"
         f"━━━━━━━━━━━━━━━━━━━━━━━━"
+        f"{about_section}"
         f"{resp_section}"
         f"{req_section}"
         f"{skills_section}"
-        f"🔗 Apply Now    : {job_url}\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🚀 Follow NextJobPost for daily fresh jobs!\n"
-        f"📢 Join Telegram: https://t.me/nextjobpost\n"
-        f"👍 Like  |  🔁 Share  |  💬 Tag a friend who needs this!\n\n"
+        f"{why_section}"
+        f"{how_section}"
+        f"{final_section}"
+        f"\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔗 Apply Now → {job_url}\n\n"
+        f"📊 Follow NextJobPost for daily fresh opportunities!\n"
+        f"📢 Telegram: https://t.me/nextjobpost\n"
+        f"🌐 Website:  https://nextjobpost.in\n"
+        f"\n👍 Like  |  🔁 Repost  |  💬 Tag someone who needs this!\n\n"
         f"{hashtags}"
     )
     return post_text
