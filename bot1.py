@@ -650,18 +650,23 @@ async def send_to_api(session, job):
 
 def build_post(job, slug):
     job_url = f"{SITE_BASE_URL}/{slug}"
+    salary = job.get('salary', 'Best in Industry')
+    batch = job.get('batch', '2024 / 2025 / 2026')
 
-    return f"""
-🔥 {job['title']}
-🏢 {job['company']}
-📍 {job['location']}
-🎓 {job['education']}
-⏳ {job['experience']}
+    return f"""🔥 **New Off-Campus Drive 2026** 🔥
 
-👉 Apply Now: {job_url}
+💼 **Role:** {job['title']}
+🏢 **Company:** {job['company']}
+📍 **Location:** {job['location']}
+🎓 **Education:** {job['education']}
+⏳ **Experience:** {job['experience']}
+💰 **Salary:** {salary}
+🎯 **Batch:** {batch}
 
-━━━━━━━━━━━━━━━
-📢 Follow on LinkedIn: https://www.linkedin.com/in/next-job-post-199b5b371
+👉 **Apply Link:** {job_url}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+📢 Follow on LinkedIn: https://www.linkedin.com/company/nextjobpost
 🚀 More Jobs: https://nextjobpost.in
 """
 
