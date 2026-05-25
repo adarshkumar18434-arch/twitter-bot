@@ -739,6 +739,36 @@ def build_post(job, slug):
         f"🔔 **Share with friends who need a job!** 👇"
     )
 
+def build_post_caption(job, slug):
+    """Build a compact Telegram image caption (max ~1000 chars to stay within limit)."""
+    job_url    = f"{SITE_BASE_URL}/{slug}"
+    title      = job.get('title', 'Job Opening')
+    company    = job.get('company', 'Top Company')
+    location   = job.get('location', 'Pan India')
+    salary     = job.get('salary', 'Best in Industry')
+    
+    # Build a compact caption
+    caption = (
+        f"🔥 {title}\n"
+        f"🏢 {company}\n"
+        f"📍 {location} | 💰 {salary}\n"
+        f"\n🔗 Apply: {job_url}\n"
+        f"👉 Join: https://t.me/nextjobpost"
+    )
+    
+    # Ensure caption doesn't exceed Telegram's 1024 char limit for media
+    if len(caption) > 1024:
+        # Truncate title and company if needed
+        caption = (
+            f"🔥 {title[:80]}\n"
+            f"🏢 {company[:50]}\n"
+            f"📍 {location[:40]} | 💰 {salary[:40]}\n"
+            f"\n🔗 Apply: {job_url}\n"
+            f"👉 Join: https://t.me/nextjobpost"
+        )
+    
+    return caption
+
 # =========================
 # STEP 2B → POST TO LINKEDIN (Rich + Image)
 # =========================
@@ -1122,11 +1152,15 @@ async def process_and_post_job(job_data):
         try:
             if image_path and os.path.exists(image_path):
                 # Send with image as caption (premium look)
+                # Use compact caption to stay within Telegram's 1024 char limit
+                compact_caption = build_post_caption(job, slug)
                 await client.send_file(
                     TARGET_CHANNEL,
                     file=image_path,
-                    caption=post
+                    caption=compact_caption
                 )
+                # Follow up with detailed post as separate message
+                await client.send_message(TARGET_CHANNEL, post)
             else:
                 # Fallback: text-only if image is missing
                 await client.send_message(TARGET_CHANNEL, post)
