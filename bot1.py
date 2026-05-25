@@ -661,7 +661,7 @@ def build_post(job, slug):
 👉 Apply Now: {job_url}
 
 ━━━━━━━━━━━━━━━
-📢 Follow on LinkedIn: https://www.linkedin.com/company/nextjobpost
+📢 Follow on LinkedIn: https://www.linkedin.com/in/next-job-post-199b5b371
 🚀 More Jobs: https://nextjobpost.in
 """
 
