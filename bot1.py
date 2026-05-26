@@ -1305,18 +1305,18 @@ async def process_and_post_job(job_data):
         await post_to_linkedin(session, job, slug)
 
         # Cleanup image
-            # Remove temporary images (generated fallback and combined images)
-            try:
-                if combined_path and os.path.exists(combined_path):
-                    os.remove(combined_path)
-            except Exception:
-                pass
+        # Remove temporary images (generated fallback and combined images)
+        try:
+            if combined_path and os.path.exists(combined_path):
+                os.remove(combined_path)
+        except Exception:
+            pass
 
-            try:
-                if image_path and os.path.exists(image_path):
-                    os.remove(image_path)
-            except Exception:
-                pass
+        try:
+            if image_path and os.path.exists(image_path):
+                os.remove(image_path)
+        except Exception:
+            pass
 
 
 async def scheduler_task():
