@@ -1275,29 +1275,27 @@ async def process_and_post_job(job_data):
             return
 
         try:
-            if image_path and os.path.exists(image_path):
-                # Send a single message: combine the image with the full job text
-                # so the entire post appears in one media message (caption stays short).
-                compact_caption = build_post_caption(job, slug)
-                # Ensure font is available for rendering text block
-                await ensure_font_downloaded()
-                combined_path = os.path.join(PENDING_IMAGES_DIR, f"combined_{h}.png")
-                try:
-                    combine_image_with_text(image_path, job, combined_path)
-                    send_path = combined_path
-                except Exception as combine_err:
-                    print(f"⚠️ Failed to combine image+text: {combine_err}. Falling back to original image.")
-                    send_path = image_path
-
-                await client.send_file(
-                    TARGET_CHANNEL,
-                    file=send_path,
-                    caption=compact_caption
-                )
+            # Prepend hidden image link using Markdown to let Telegram pull it as a premium preview banner
+            if uploaded_url:
+                telegram_post = f"[\u200b]({uploaded_url}){post}"
             else:
-                # Fallback: text-only if image is missing
-                await client.send_message(TARGET_CHANNEL, post)
-            print(f"✔ Telegram Posted (with image).")
+                telegram_post = post
+
+            # Use raw SendMessageRequest with invert_media=True to show the image preview at the TOP of the message
+            from telethon.tl.functions.messages import SendMessageRequest
+            import random
+
+            peer_entity = await client.get_input_entity(TARGET_CHANNEL)
+            msg_text, entities = await client._parse_message_text(telegram_post, 'md')
+
+            await client(SendMessageRequest(
+                peer=peer_entity,
+                message=msg_text,
+                entities=entities,
+                invert_media=True,
+                random_id=random.randint(-2**63, 2**63 - 1)
+            ))
+            print(f"✔ Telegram Posted in a single unified message section with the image at the TOP.")
         except Exception as e:
             print(f"❌ Telegram failed: {e}")
 
@@ -1305,13 +1303,6 @@ async def process_and_post_job(job_data):
         await post_to_linkedin(session, job, slug)
 
         # Cleanup image
-        # Remove temporary images (generated fallback and combined images)
-        try:
-            if combined_path and os.path.exists(combined_path):
-                os.remove(combined_path)
-        except Exception:
-            pass
-
         try:
             if image_path and os.path.exists(image_path):
                 os.remove(image_path)

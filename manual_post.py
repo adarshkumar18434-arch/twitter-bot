@@ -90,19 +90,30 @@ async def run_manual_post():
                 slug = backend_slug
                 print(f"✔ Using backend slug: {slug}")
         
-        # 4. Telegram Post (WITH IMAGE)
-        print("📢 Posting to Telegram channel (with image)...")
+        # 4. Telegram Post (WITH IMAGE LINK PREVIEW AT THE TOP)
+        print("📢 Posting to Telegram channel as a unified message with image preview at the TOP...")
         post = build_post(job, slug)
         try:
-            if image_path and os.path.exists(image_path):
-                await client.send_file(
-                    TARGET_CHANNEL,
-                    file=image_path,
-                    caption=post
-                )
+            if uploaded_url:
+                telegram_post = f"[\u200b]({uploaded_url}){post}"
             else:
-                await client.send_message(TARGET_CHANNEL, post)
-            print("✔ Successfully posted to Telegram with image!")
+                telegram_post = post
+
+            # Use raw SendMessageRequest with invert_media=True to show the image preview at the TOP of the message
+            from telethon.tl.functions.messages import SendMessageRequest
+            import random
+
+            peer_entity = await client.get_input_entity(TARGET_CHANNEL)
+            msg_text, entities = await client._parse_message_text(telegram_post, 'md')
+
+            await client(SendMessageRequest(
+                peer=peer_entity,
+                message=msg_text,
+                entities=entities,
+                invert_media=True,
+                random_id=random.randint(-2**63, 2**63 - 1)
+            ))
+            print("✔ Successfully posted to Telegram in a single unified message with the image at the TOP!")
         except Exception as e:
             print(f"❌ Telegram posting failed: {e}")
             
