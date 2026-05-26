@@ -89,6 +89,7 @@ CACHE_FILE = "posted_cache.json"
 
 def load_cache():
     if os.path.exists(CACHE_FILE):
+        combined_path = None
         try:
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
                 return set(json.load(f))
@@ -535,6 +536,130 @@ def generate_poster(title, company, location, salary, output_path):
     
     # Save Image
     img.save(output_path, "PNG")
+
+
+def render_text_block(job, width=1200, padding=40):
+    """Render the full job text into an image block to append under/alongside a poster.
+    Returns a PIL Image object containing the rendered text block."""
+    from PIL import ImageFont
+
+    # Prepare fonts
+    try:
+        font_title = ImageFont.truetype(FONT_PATH, 42)
+        font_body = ImageFont.truetype(FONT_PATH, 24)
+    except Exception:
+        font_title = font_body = ImageFont.load_default()
+
+    # Build the text content
+    lines = []
+    lines.append(job.get('title', 'Job Opening'))
+    lines.append("\n")
+    summary = job.get('shortSummary') or job.get('description') or ''
+    if summary:
+        lines.append(summary)
+        lines.append("\n")
+
+    fields = [
+        ("Company", job.get('company', 'Top Company')),
+        ("Location", job.get('location', 'Pan India')),
+        ("Education", job.get('education', 'Any Graduate')),
+        ("Experience", job.get('experience', 'Fresher / 0-2 Years')),
+        ("Salary", job.get('salary', 'Best in Industry')),
+        ("Job Type", job.get('type', 'Full-Time')),
+    ]
+
+    for k, v in fields:
+        lines.append(f"{k}: {v}")
+
+    # Responsibilities, Requirements, Skills
+    if job.get('responsibilities'):
+        lines.append('\nResponsibilities:')
+        for r in job.get('responsibilities', [])[:6]:
+            lines.append(f" - {r}")
+
+    if job.get('requirements'):
+        lines.append('\nRequirements:')
+        for r in job.get('requirements', [])[:6]:
+            lines.append(f" - {r}")
+
+    if job.get('skills'):
+        lines.append('\nSkills: ' + ', '.join(job.get('skills', [])[:10]))
+
+    lines.append('\nApply: ' + job.get('applyLink', job.get('image', SITE_BASE_URL)))
+
+    # Convert to single text string and wrap
+    text = "\n".join(lines)
+
+    # Create a temporary image to calculate height
+    dummy = Image.new('RGB', (width, 10), color=(20, 25, 35))
+    draw = ImageDraw.Draw(dummy)
+
+    wrapped_lines = []
+    for paragraph in text.split('\n'):
+        if not paragraph:
+            wrapped_lines.append('')
+            continue
+        # wrap by approximate character width using font metrics
+        words = paragraph.split()
+        cur = []
+        for w in words:
+            test = ' '.join(cur + [w])
+            wbox = draw.textbbox((0, 0), test, font=font_body)
+            if wbox[2] <= (width - 2 * padding):
+                cur.append(w)
+            else:
+                wrapped_lines.append(' '.join(cur))
+                cur = [w]
+        if cur:
+            wrapped_lines.append(' '.join(cur))
+
+    # Estimate height
+    line_height = (font_body.getbbox('Ay')[3] - font_body.getbbox('Ay')[1]) + 8
+    title_height = (font_title.getbbox('Ay')[3] - font_title.getbbox('Ay')[1]) + 16
+    total_height = padding + title_height + len(wrapped_lines) * line_height + padding
+
+    block = Image.new('RGB', (width, max(400, total_height)), color=(18, 24, 36))
+    draw = ImageDraw.Draw(block)
+
+    # Draw title
+    y = padding
+    draw.text((padding, y), job.get('title', 'Job Opening'), fill=(255, 255, 255), font=font_title)
+    y += title_height
+
+    # Draw wrapped lines
+    for ln in wrapped_lines:
+        draw.text((padding, y), ln, fill=(230, 230, 230), font=font_body)
+        y += line_height
+
+    return block
+
+
+def combine_image_with_text(image_path, job, output_path, width=1200):
+    """Combine an existing image (photo or poster) with the rendered text block beneath it.
+    Saves combined image to output_path and returns the path."""
+    try:
+        base = Image.open(image_path).convert('RGB')
+    except Exception:
+        # If cannot open, just render text block as image
+        block = render_text_block(job, width=width)
+        block.save(output_path, 'PNG')
+        return output_path
+
+    # Resize base to target width while keeping aspect
+    w_percent = (width / float(base.size[0]))
+    new_h = int((float(base.size[1]) * float(w_percent)))
+    base_resized = base.resize((width, new_h), Image.Resampling.LANCZOS)
+
+    text_block = render_text_block(job, width=width)
+
+    # Create final combined image
+    final_h = base_resized.size[1] + text_block.size[1]
+    final = Image.new('RGB', (width, final_h), (18, 24, 36))
+    final.paste(base_resized, (0, 0))
+    final.paste(text_block, (0, base_resized.size[1]))
+
+    final.save(output_path, 'PNG')
+    return output_path
 
 async def upload_image_to_api(session, file_path, retries=3, delay=5):
     """
@@ -1151,16 +1276,24 @@ async def process_and_post_job(job_data):
 
         try:
             if image_path and os.path.exists(image_path):
-                # Send with image as caption (premium look)
-                # Use compact caption to stay within Telegram's 1024 char limit
+                # Send a single message: combine the image with the full job text
+                # so the entire post appears in one media message (caption stays short).
                 compact_caption = build_post_caption(job, slug)
+                # Ensure font is available for rendering text block
+                await ensure_font_downloaded()
+                combined_path = os.path.join(PENDING_IMAGES_DIR, f"combined_{h}.png")
+                try:
+                    combine_image_with_text(image_path, job, combined_path)
+                    send_path = combined_path
+                except Exception as combine_err:
+                    print(f"⚠️ Failed to combine image+text: {combine_err}. Falling back to original image.")
+                    send_path = image_path
+
                 await client.send_file(
                     TARGET_CHANNEL,
-                    file=image_path,
+                    file=send_path,
                     caption=compact_caption
                 )
-                # Follow up with detailed post as separate message
-                await client.send_message(TARGET_CHANNEL, post)
             else:
                 # Fallback: text-only if image is missing
                 await client.send_message(TARGET_CHANNEL, post)
@@ -1172,9 +1305,18 @@ async def process_and_post_job(job_data):
         await post_to_linkedin(session, job, slug)
 
         # Cleanup image
-        if image_path and os.path.exists(image_path):
-            try: os.remove(image_path)
-            except: pass
+            # Remove temporary images (generated fallback and combined images)
+            try:
+                if combined_path and os.path.exists(combined_path):
+                    os.remove(combined_path)
+            except Exception:
+                pass
+
+            try:
+                if image_path and os.path.exists(image_path):
+                    os.remove(image_path)
+            except Exception:
+                pass
 
 
 async def scheduler_task():
