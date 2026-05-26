@@ -858,7 +858,7 @@ def build_post(job, slug):
         f"\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📢 **Next Job Post** — Your daily job alert hub\n"
         f"🌐 More Jobs:  https://nextjobpost.in\n"
-        f"💼 LinkedIn:   https://www.linkedin.com/company/nextjobpost\n"
+        f"💼 LinkedIn:   https://www.linkedin.com/in/next-job-post-199b5b371\n"
         f"👉 **Join Channel:** https://t.me/nextjobpost\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🔔 **Share with friends who need a job!** 👇"
